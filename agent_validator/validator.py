@@ -41,6 +41,7 @@ class ResponseValidator:
         Возвращает валидный dict или raises исключение.
         """
         for _ in range(max_retries):
+            print(f"++++++Попытка №{max_retries}+++++++")
             raw_response = self.call_llm(prompt)
             is_valid, parsed, error_message = self.validate(raw_response, required_fields)
             if is_valid:
