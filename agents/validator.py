@@ -51,7 +51,7 @@ class ResponseValidator:
         Возвращает валидный dict или raises исключение.
         """
         for _ in range(max_retries):
-            print(f"++++++Попытка №{max_retries}+++++++")
+            print(f"++++++Попытка №{_}+++++++")
             raw_response = self.call_llm(prompt)
             is_valid, parsed, error_message = self.validate(
                 raw_response, required_fields
@@ -63,6 +63,35 @@ class ResponseValidator:
                 Ошибка: {error_message}
                 Требуемые поля: {required_fields}
                 Верни ТОЛЬКО валидный JSON, без пояснений."""
+
+        raise ValueError(f"Failed to generate valid JSON after {max_retries} retries")
+
+    def generate_with_retry_and_sys_prompt(
+        self,
+        user_prompt: str,
+        required_fields: list[str],
+        system_prompt: str = None,
+        max_retries: int = 3,
+    ) -> dict:
+        current_prompt = user_prompt
+        for attempt in range(max_retries):
+            print(f"++++++Попытка №{attempt+1}+++++++")
+            if system_prompt:
+                full_prompt = system_prompt + "\n" + user_prompt
+            else:
+                full_prompt = current_prompt
+            raw_response = self.call_llm(full_prompt)
+            is_valid, parsed, error_message = self.validate(
+                raw_response,
+                required_fields,
+            )
+            if is_valid:
+                return parsed  # возвращаем результат если валидная строка ответа
+            else:
+                current_prompt = f"""Твой предыдущий ответ: {raw_response}\n
+                        Ошибка: {error_message}
+                        Требуемые поля: {required_fields}
+                        Верни ТОЛЬКО валидный JSON, без пояснений."""
 
         raise ValueError(f"Failed to generate valid JSON after {max_retries} retries")
 
@@ -78,6 +107,7 @@ def error_prompt() -> None:
         print(f"Успех! Получен JSON: {result}")
     except Exception as e:
         print(f"Не удалось получить валидный JSON: {e}")
+    return
 
 
 def valid_prompt():
@@ -93,8 +123,28 @@ def valid_prompt():
         print(f"Распарсено: {parsed}")
     else:
         print(f"Ошибка: {error}")
+    return
+
+
+def valid_prompt_with_system():
+    validator = ResponseValidator()
+
+    system = (
+        "Ты помощник, который возвращает ТОЛЬКО JSON. Никогда не добавляй пояснения."
+    )
+    user = "Верни JSON с полями: name, role"
+
+    result = validator.generate_with_retry_and_sys_prompt(
+        user_prompt=user,
+        required_fields=["name", "role"],
+        system_prompt=system,
+        max_retries=2,
+    )
+    print(f"Результат: {result}")
+    return
 
 
 if __name__ == "__main__":
     valid_prompt()
     error_prompt()
+    valid_prompt_with_system()
